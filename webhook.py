@@ -50,7 +50,7 @@ class EventType(Enum):
     PR_REVIEW_REQUEST_REMOVED = 28
     PR_LABELED                = 29
     PR_UNLABELED              = 30
-    PR_SYNCHRONIZED           = 31
+    PR_SYNCHRONIZE            = 31
     PR_READY_FOR_REVIEW       = 32
     PR_CONVERTED_TO_DRAFT     = 33
     PR_LOCKED                 = 34
@@ -105,7 +105,7 @@ class EventTypeGroup(Enum):
         EventType.PR_REVIEW_REQUEST_REMOVED,
         EventType.PR_LABELED,
         EventType.PR_UNLABELED,
-        EventType.PR_SYNCHRONIZED,
+        EventType.PR_SYNCHRONIZE,
         EventType.PR_READY_FOR_REVIEW,
         EventType.PR_CONVERTED_TO_DRAFT,
         EventType.PR_LOCKED,
@@ -243,8 +243,8 @@ def get_event_type(event):
                 return EventType.PR_LABELED
             if event['action'] == 'unlabeled':
                 return EventType.PR_UNLABELED
-            if event['action'] == 'synchronized':
-                return EventType.PR_SYNCHRONIZED
+            if event['action'] == 'synchronize':
+                return EventType.PR_SYNCHRONIZE
             if event['action'] == 'auto_merge_enabled':
                 return EventType.PR_AUTO_MERGE_ENABLED
             if event['action'] == 'auto_merge_disabled':
@@ -265,6 +265,8 @@ def get_event_type(event):
     elif 'comment' in event and 'commit_id' in event['comment']:
         if event['action'] == 'created':
             return EventType.COMMIT_COMMENT
+
+    logger.warning('UNKNOWN event received: %s', json.dumps(event))
 
     return EventType.UNKNOWN
 
