@@ -153,6 +153,16 @@ external_event_filter = [
     EventType.PR_REVIEW_COMMENT_CREATED
 ]
 
+### User blacklist
+user_filter = [
+    'github-actions[bot]'
+]
+
+### Repo blacklist
+repo_filter = [
+    'berty/bugs'
+]
+
 ### Setup global logger
 logger = logging.getLogger('webhook')
 logger.setLevel(logging.INFO)
@@ -272,9 +282,9 @@ def parse_event(event_type, event):
 
     ### Set author (common)
     embed.set_author(
-        name=event['sender']['login'],
-        url=event['sender']['html_url'],
-        icon_url=event['sender']['avatar_url']
+        name     = event['sender']['login'],
+        url      = event['sender']['html_url'],
+        icon_url = event['sender']['avatar_url']
     )
 
     ### Set embed color (common)
@@ -382,7 +392,13 @@ def is_author_staff(event):
     response = requests.get(url, headers=headers)
 
     if response.status_code not in [200, 204]:
-        raise Exception('author permission request failed', response.status_code)
+        raise Exception(
+            'author permission request failed: (code: %d), (text: %s), (repo: %s, user: %s)',
+            response.status_code,
+            response.text,
+            event['repository']['full_name'],
+            event['sender']['login']
+        )
 
     try:
         permission = json.loads(response.text)['permission']
@@ -390,7 +406,13 @@ def is_author_staff(event):
             return True
         return False
     except:
-        raise Exception('author permission request response malformed', response.text)
+        raise Exception(
+            'author permission request response malformed: (text: %s), (repo: %s, user: %s)',
+            response.text,
+            event['repository']['full_name'],
+            event['sender']['login']
+        )
+
 
 ### Send formated embed message to specified webhook url
 def send_to_discord(webhook_url, embed):
@@ -402,19 +424,34 @@ def send_to_discord(webhook_url, embed):
 
     for response in responses:
         if response.status_code not in [200, 204]:
-            logger.error('executing webhook failed: (code: %d), (text: %s)' % (response.status_code, response.text))
+            logger.error(
+                'executing webhook failed: (code: %d), (text: %s), (author: %s, title: %s, description: %s)',
+                response.status_code,
+                response.text,
+                embed.author['name'],
+                embed.title,
+                embed.description
+            )
             return
 
-    logger.info('event sent to discord successfully: %s' % embed.title)
+    logger.info('event sent to discord successfully: %s', embed.title)
 
 def handle_event(event):
     ### Determine event type
     event_type = get_event_type(event)
 
+    ### Filter event accordingly to user and repo blacklists
+    if event['sender']['login'] in user_filter:
+        logger.info('user (%s) is in blacklist: event [%s] skipped', event['sender']['login'], event_type.name)
+        return
+    elif event['repository']['full_name'] in repo_filter:
+        logger.info('repo (%s) is in blacklist: event [%s] skipped', event['repository']['full_name'], event_type.name)
+        return
+
     ### Check if event author is a staff user
     is_staff = is_author_staff(event)
 
-    ### Filter event accordingly to whitelists
+    ### Filter event accordingly to user/event type whitelist
     if is_staff and event_type in staff_event_filter:
         embed = parse_event(event_type, event)
         send_to_discord(github_staff, embed)
@@ -432,4 +469,4 @@ if __name__ == "__main__":
     try:
         handle_event(event)
     except Exception as detail:
-        logger.error('can not handle event: %s' % detail)
+        logger.error('can not handle event: %s', detail)
